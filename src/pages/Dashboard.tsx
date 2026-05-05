@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Activity, Scan, HeartPulse, ShoppingBag, AlertCircle, Crown } from "lucide-react";
+import { Activity, Scan, HeartPulse, ShoppingBag, AlertCircle, Crown, Clock, CheckCircle2, XCircle, Send } from "lucide-react";
 import { motion } from "framer-motion";
 import { useLang } from "@/contexts/LangContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -14,6 +14,8 @@ const Dashboard = () => {
   const [scans, setScans] = useState<any[]>([]);
   const [animals, setAnimals] = useState<any[]>([]);
   const [listings, setListings] = useState<any[]>([]);
+  const [payments, setPayments] = useState<any[]>([]);
+  const [subscription, setSubscription] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,10 +26,12 @@ const Dashboard = () => {
       setLoading(true);
       setError(null);
       try {
-        const [scanRes, animalRes, listingRes] = await Promise.all([
+        const [scanRes, animalRes, listingRes, payRes, subRes] = await Promise.all([
           supabase.from("ai_diagnoses").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(10),
           supabase.from("animal_health_records").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
           supabase.from("marketplace_listings").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(5),
+          supabase.from("payment_requests" as any).select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(5),
+          supabase.from("subscriptions" as any).select("*").eq("user_id", user.id).maybeSingle(),
         ]);
         if (cancelled) return;
         if (scanRes.error) throw scanRes.error;
@@ -36,6 +40,8 @@ const Dashboard = () => {
         setScans(scanRes.data || []);
         setAnimals(animalRes.data || []);
         setListings(listingRes.data || []);
+        setPayments((payRes.data as any[]) || []);
+        setSubscription(subRes.data || null);
       } catch (e: any) {
         if (!cancelled) setError(e?.message || "Failed to load dashboard");
       } finally {
@@ -43,7 +49,17 @@ const Dashboard = () => {
       }
     };
     load();
-    return () => { cancelled = true; };
+
+    const channel = supabase
+      .channel(`dash-${user.id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "payment_requests", filter: `user_id=eq.${user.id}` }, load)
+      .on("postgres_changes", { event: "*", schema: "public", table: "subscriptions", filter: `user_id=eq.${user.id}` }, load)
+      .on("postgres_changes", { event: "*", schema: "public", table: "ai_diagnoses", filter: `user_id=eq.${user.id}` }, load)
+      .on("postgres_changes", { event: "*", schema: "public", table: "marketplace_listings", filter: `user_id=eq.${user.id}` }, load)
+      .on("postgres_changes", { event: "*", schema: "public", table: "animal_health_records", filter: `user_id=eq.${user.id}` }, load)
+      .subscribe();
+
+    return () => { cancelled = true; supabase.removeChannel(channel); };
   }, [user]);
 
   if (!user) {
@@ -190,6 +206,65 @@ const Dashboard = () => {
             <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-success" /> {lang === "am" ? "ጤናማ" : "Healthy"}</span>
             <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-destructive" /> {lang === "am" ? "የታመመ" : "Sick"}</span>
           </div>
+        </div>
+      )}
+
+      {/* Premium / Payment Timeline */}
+      {(payments.length > 0 || subscription) && (
+        <div className="bg-card border border-border rounded-xl p-5 space-y-4">
+          <h2 className="font-heading font-bold flex items-center gap-2">
+            <Crown className="h-5 w-5 text-accent" />
+            {lang === "am" ? "የክፍያ ሁኔታ" : "Premium Status"}
+          </h2>
+
+          {subscription?.status === "active" && (
+            <div className="p-3 rounded-lg bg-success/10 border border-success/30 text-sm">
+              <p className="font-semibold text-success">
+                {lang === "am" ? "ንቁ" : "Active"} · {subscription.tier}
+              </p>
+              {subscription.expires_at && (
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {lang === "am" ? "ያበቃል" : "Expires"}: {new Date(subscription.expires_at).toLocaleDateString()}
+                </p>
+              )}
+            </div>
+          )}
+
+          {payments.length > 0 && (
+            <ol className="relative border-l-2 border-border ml-2 space-y-4">
+              {payments.map((p) => {
+                const status = p.status as string;
+                const Icon = status === "approved" ? CheckCircle2 : status === "rejected" ? XCircle : status === "pending" ? Clock : Send;
+                const color = status === "approved" ? "text-success bg-success/10 border-success/30"
+                  : status === "rejected" ? "text-destructive bg-destructive/10 border-destructive/30"
+                  : "text-accent-foreground bg-accent/10 border-accent/30";
+                return (
+                  <li key={p.id} className="ml-4">
+                    <span className={`absolute -left-[11px] flex items-center justify-center w-5 h-5 rounded-full border ${color}`}>
+                      <Icon className="h-3 w-3" />
+                    </span>
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div>
+                        <p className="text-sm font-medium capitalize">{status} · {p.tier}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {p.method?.toUpperCase()} · {p.amount} ETB
+                          {p.reference ? ` · Ref: ${p.reference}` : ""}
+                        </p>
+                      </div>
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(p.created_at).toLocaleString()}
+                      </span>
+                    </div>
+                    {status === "rejected" && (
+                      <Link to="/premium" className="text-xs text-primary hover:underline">
+                        {lang === "am" ? "እንደገና ይሞክሩ" : "Try again"} →
+                      </Link>
+                    )}
+                  </li>
+                );
+              })}
+            </ol>
+          )}
         </div>
       )}
     </motion.div>

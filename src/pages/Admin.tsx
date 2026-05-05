@@ -186,26 +186,28 @@ const Admin = () => {
   };
 
   return (
-    <div className="container py-6 max-w-5xl mx-auto space-y-6">
+    <div className="container py-4 sm:py-6 max-w-5xl mx-auto space-y-4 sm:space-y-6 px-3 sm:px-6">
       <div className="flex items-center gap-3">
-        <Shield className="h-8 w-8 text-primary" />
-        <h1 className="text-2xl font-heading font-bold">Admin Dashboard</h1>
+        <Shield className="h-7 w-7 sm:h-8 sm:w-8 text-primary shrink-0" />
+        <h1 className="text-xl sm:text-2xl font-heading font-bold">Admin Dashboard</h1>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 bg-secondary rounded-lg p-1">
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors flex-1 justify-center ${
-              tab === t.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <t.icon className="h-4 w-4" />
-            {t.label}
-          </button>
-        ))}
+      {/* Tabs - scrollable on mobile, grid on larger screens */}
+      <div className="-mx-3 sm:mx-0 overflow-x-auto sm:overflow-visible">
+        <div className="flex sm:grid sm:grid-cols-6 gap-1 bg-secondary rounded-lg p-1 mx-3 sm:mx-0 w-max sm:w-auto min-w-full">
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-md text-xs sm:text-sm font-medium transition-colors justify-center whitespace-nowrap ${
+                tab === t.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <t.icon className="h-4 w-4 shrink-0" />
+              {t.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {loading ? (
