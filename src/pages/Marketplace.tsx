@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, MapPin, Phone, Tag, X } from "lucide-react";
+import { Plus, MapPin, Phone, Tag, X, BadgeCheck, Star } from "lucide-react";
 import { useLang } from "@/contexts/LangContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -36,6 +36,10 @@ const Marketplace = () => {
   const { lang } = useLang();
   const { user } = useAuth();
   const [listings, setListings] = useState<Listing[]>([]);
+  const [verified, setVerified] = useState<Set<string>>(new Set());
+  const [ratings, setRatings] = useState<Record<string, { avg: number; count: number }>>({});
+  const [reviewFor, setReviewFor] = useState<Listing | null>(null);
+  const [revForm, setRevForm] = useState({ rating: 5, comment: "" });
   const [showForm, setShowForm] = useState(false);
   const [filter, setFilter] = useState("all");
   const [loading, setLoading] = useState(true);
@@ -49,8 +53,36 @@ const Marketplace = () => {
       .select("*")
       .eq("status", "active")
       .order("created_at", { ascending: false });
-    setListings(data || []);
+    const list = (data || []) as Listing[];
+    setListings(list);
+    const sellerIds = Array.from(new Set(list.map(l => l.user_id)));
+    if (sellerIds.length) {
+      const { data: vs } = await supabase.from("seller_verifications").select("user_id").in("user_id", sellerIds).eq("status", "approved");
+      setVerified(new Set((vs || []).map((v: any) => v.user_id)));
+    }
+    const listingIds = list.map(l => l.id);
+    if (listingIds.length) {
+      const { data: rs } = await supabase.from("listing_reviews").select("listing_id,rating").in("listing_id", listingIds);
+      const map: Record<string, { avg: number; count: number }> = {};
+      (rs || []).forEach((r: any) => {
+        map[r.listing_id] = map[r.listing_id] || { avg: 0, count: 0 };
+        map[r.listing_id].avg += r.rating; map[r.listing_id].count += 1;
+      });
+      Object.keys(map).forEach(k => { map[k].avg = map[k].avg / map[k].count; });
+      setRatings(map);
+    }
     setLoading(false);
+  };
+
+  const submitReview = async () => {
+    if (!user || !reviewFor) return;
+    const { error } = await supabase.from("listing_reviews").insert({
+      listing_id: reviewFor.id, seller_id: reviewFor.user_id, reviewer_id: user.id,
+      rating: revForm.rating, comment: revForm.comment || null,
+    });
+    if (error) { toast.error(error.message); return; }
+    toast.success(lang === "am" ? "ምስጋና" : "Review posted");
+    setReviewFor(null); setRevForm({ rating: 5, comment: "" }); fetchListings();
   };
 
   useEffect(() => { fetchListings(); }, []);
@@ -207,7 +239,17 @@ const Marketplace = () => {
                 </span>
                 <ReportButton targetType="marketplace_listing" targetId={item.id} />
               </div>
-              <h3 className="font-bold text-lg">{item.title}</h3>
+              <h3 className="font-bold text-lg flex items-center gap-1">
+                {item.title}
+                {verified.has(item.user_id) && <BadgeCheck className="h-4 w-4 text-blue-500" aria-label="Verified seller"/>}
+              </h3>
+              {ratings[item.id] && (
+                <div className="flex items-center gap-1 text-xs">
+                  <Star className="h-3 w-3 fill-amber-400 text-amber-400"/>
+                  <b>{ratings[item.id].avg.toFixed(1)}</b>
+                  <span className="text-muted-foreground">({ratings[item.id].count})</span>
+                </div>
+              )}
               {item.description && <p className="text-sm text-muted-foreground line-clamp-3">{item.description}</p>}
               <div className="flex items-center gap-1 text-lg font-bold text-primary">
                 <Tag className="h-4 w-4" />
@@ -226,6 +268,11 @@ const Marketplace = () => {
               <p className="text-xs text-muted-foreground">
                 {item.profiles?.full_name || item.profiles?.email?.split("@")[0]} · {new Date(item.created_at).toLocaleDateString()}
               </p>
+              {user && user.id !== item.user_id && (
+                <button onClick={() => setReviewFor(item)} className="text-xs text-primary hover:underline">
+                  {lang === "am" ? "ምስጋና ይስጡ" : "Leave a review"}
+                </button>
+              )}
             </div>
           ))}
         </div>
@@ -235,6 +282,23 @@ const Marketplace = () => {
         <Link to="/auth" className="block text-center text-sm text-primary hover:underline">
           {lang === "am" ? "ለመሸጥ ይግቡ" : "Log in to sell"}
         </Link>
+      )}
+
+      {reviewFor && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setReviewFor(null)}>
+          <div className="bg-card rounded-xl p-6 w-full max-w-sm space-y-3" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-bold">Review: {reviewFor.title}</h3>
+            <div className="flex gap-1">
+              {[1,2,3,4,5].map(n => (
+                <button key={n} onClick={() => setRevForm({ ...revForm, rating: n })}>
+                  <Star className={`h-7 w-7 ${n <= revForm.rating ? "fill-amber-400 text-amber-400" : "text-muted-foreground"}`}/>
+                </button>
+              ))}
+            </div>
+            <textarea value={revForm.comment} onChange={(e) => setRevForm({ ...revForm, comment: e.target.value })} placeholder="Your experience" rows={3} className="w-full border rounded-lg px-3 py-2 text-sm bg-background"/>
+            <button onClick={submitReview} className="w-full px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm">Submit</button>
+          </div>
+        </div>
       )}
     </div>
   );

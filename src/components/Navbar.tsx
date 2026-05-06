@@ -4,7 +4,8 @@ import {
   Menu, X, Globe, LogIn, LogOut, Shield, ChevronDown,
   Camera, MapPin, Droplets, BookOpen, Heart, CloudSun,
   MessageSquare, ShoppingCart, CalendarDays, TrendingUp,
-  LayoutDashboard, Crown,
+  LayoutDashboard, Crown, Wrench, Wallet, Cog, HardHat,
+  Calculator, QrCode, Package, Star, BellRing, LineChart,
 } from "lucide-react";
 import { useLang } from "@/contexts/LangContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -19,6 +20,11 @@ const navGroups = [
       { path: "/inputs", key: "nav.inputs" as const, icon: Droplets },
       { path: "/crop-calendar", key: "nav.cropCalendar" as const, icon: CalendarDays },
       { path: "/weather", key: "nav.weather" as const, icon: CloudSun },
+      { path: "/rentals", label: { en: "Tool Rentals", am: "ኪራይ" }, icon: Wrench },
+      { path: "/my-tools", label: { en: "My Tools & QR", am: "መሳሪያዎቼ" }, icon: QrCode },
+      { path: "/parts", label: { en: "Spare Parts", am: "መለዋወጫ" }, icon: Cog },
+      { path: "/operators", label: { en: "Hire Operators", am: "ኦፐሬተር" }, icon: HardHat },
+      { path: "/tool-calculator", label: { en: "Tool Calculator", am: "ካልኩሌተር" }, icon: Calculator },
     ],
   },
   {
@@ -34,6 +40,11 @@ const navGroups = [
     items: [
       { path: "/marketplace", key: "nav.marketplace" as const, icon: ShoppingCart },
       { path: "/prices", key: "nav.prices" as const, icon: TrendingUp },
+      { path: "/bulk-requests", label: { en: "Bulk Requests", am: "ብዛት ፍላጎት" }, icon: Package },
+      { path: "/saved-searches", label: { en: "Saved Searches", am: "የተቀመጡ" }, icon: BellRing },
+      { path: "/escrow", label: { en: "Escrow", am: "ኤስክሮ" }, icon: Wallet },
+      { path: "/price-trends", label: { en: "Price Trends", am: "ዋጋ አዝማሚያ" }, icon: LineChart },
+      { path: "/become-verified", label: { en: "Get Verified", am: "ማረጋገጫ" }, icon: Star },
     ],
   },
 ];
@@ -163,7 +174,7 @@ const Navbar = () => {
                             }`}
                           >
                             <Icon className={`h-4 w-4 shrink-0 ${active ? "text-primary" : "text-muted-foreground"}`} />
-                            {t(item.key)}
+                            {("key" in item ? t((item as any).key) : (lang === "am" ? (item as any).label.am : (item as any).label.en))}
                           </Link>
                         );
                       })}
@@ -188,7 +199,7 @@ const Navbar = () => {
                 }`}
               >
                 <Icon className="h-3.5 w-3.5" />
-                {t(item.key)}
+                {("key" in item ? t((item as any).key) : (lang === "am" ? (item as any).label.am : (item as any).label.en))}
               </Link>
             );
           })}
@@ -328,7 +339,7 @@ const Navbar = () => {
                         }`}
                       >
                         <Icon className="h-4 w-4 opacity-70" />
-                        {t(item.key)}
+                        {("key" in item ? t((item as any).key) : (lang === "am" ? (item as any).label.am : (item as any).label.en))}
                       </Link>
                     );
                   })}
@@ -350,7 +361,7 @@ const Navbar = () => {
                     }`}
                   >
                     <Icon className="h-4 w-4 opacity-70" />
-                    {t(item.key)}
+                    {("key" in item ? t((item as any).key) : (lang === "am" ? (item as any).label.am : (item as any).label.en))}
                   </Link>
                 );
               })}

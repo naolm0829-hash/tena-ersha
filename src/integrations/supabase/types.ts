@@ -83,6 +83,48 @@ export type Database = {
         }
         Relationships: []
       }
+      bulk_requests: {
+        Row: {
+          buyer_id: string
+          contact: string | null
+          created_at: string
+          crop: string
+          id: string
+          max_price_per_quintal: number | null
+          needed_by: string | null
+          notes: string | null
+          quantity_quintals: number
+          region: string | null
+          status: string
+        }
+        Insert: {
+          buyer_id: string
+          contact?: string | null
+          created_at?: string
+          crop: string
+          id?: string
+          max_price_per_quintal?: number | null
+          needed_by?: string | null
+          notes?: string | null
+          quantity_quintals: number
+          region?: string | null
+          status?: string
+        }
+        Update: {
+          buyer_id?: string
+          contact?: string | null
+          created_at?: string
+          crop?: string
+          id?: string
+          max_price_per_quintal?: number | null
+          needed_by?: string | null
+          notes?: string | null
+          quantity_quintals?: number
+          region?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
       crop_calendar_entries: {
         Row: {
           created_at: string
@@ -203,6 +245,56 @@ export type Database = {
         }
         Relationships: []
       }
+      escrow_transactions: {
+        Row: {
+          amount: number
+          buyer_confirmed: boolean
+          buyer_id: string
+          created_at: string
+          id: string
+          listing_id: string | null
+          released_at: string | null
+          seller_confirmed: boolean
+          seller_id: string
+          status: string
+          telebirr_reference: string | null
+        }
+        Insert: {
+          amount: number
+          buyer_confirmed?: boolean
+          buyer_id: string
+          created_at?: string
+          id?: string
+          listing_id?: string | null
+          released_at?: string | null
+          seller_confirmed?: boolean
+          seller_id: string
+          status?: string
+          telebirr_reference?: string | null
+        }
+        Update: {
+          amount?: number
+          buyer_confirmed?: boolean
+          buyer_id?: string
+          created_at?: string
+          id?: string
+          listing_id?: string | null
+          released_at?: string | null
+          seller_confirmed?: boolean
+          seller_id?: string
+          status?: string
+          telebirr_reference?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "escrow_transactions_listing_id_fkey"
+            columns: ["listing_id"]
+            isOneToOne: false
+            referencedRelation: "marketplace_listings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       forum_posts: {
         Row: {
           body: string
@@ -271,6 +363,44 @@ export type Database = {
           },
         ]
       }
+      listing_reviews: {
+        Row: {
+          comment: string | null
+          created_at: string
+          id: string
+          listing_id: string
+          rating: number
+          reviewer_id: string
+          seller_id: string
+        }
+        Insert: {
+          comment?: string | null
+          created_at?: string
+          id?: string
+          listing_id: string
+          rating: number
+          reviewer_id: string
+          seller_id: string
+        }
+        Update: {
+          comment?: string | null
+          created_at?: string
+          id?: string
+          listing_id?: string
+          rating?: number
+          reviewer_id?: string
+          seller_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "listing_reviews_listing_id_fkey"
+            columns: ["listing_id"]
+            isOneToOne: false
+            referencedRelation: "marketplace_listings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       marketplace_listings: {
         Row: {
           category: string
@@ -313,6 +443,93 @@ export type Database = {
           title?: string
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      operator_listings: {
+        Row: {
+          available: boolean
+          bio: string | null
+          contact: string | null
+          created_at: string
+          experience_years: number
+          full_name: string
+          id: string
+          location: string | null
+          rate_per_day: number
+          skills: string[]
+          user_id: string
+        }
+        Insert: {
+          available?: boolean
+          bio?: string | null
+          contact?: string | null
+          created_at?: string
+          experience_years?: number
+          full_name: string
+          id?: string
+          location?: string | null
+          rate_per_day?: number
+          skills?: string[]
+          user_id: string
+        }
+        Update: {
+          available?: boolean
+          bio?: string | null
+          contact?: string | null
+          created_at?: string
+          experience_years?: number
+          full_name?: string
+          id?: string
+          location?: string | null
+          rate_per_day?: number
+          skills?: string[]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      owned_tools: {
+        Row: {
+          brand: string | null
+          category: string
+          created_at: string
+          id: string
+          manual_url: string | null
+          model: string | null
+          name: string
+          notes: string | null
+          owner_id: string
+          qr_code: string | null
+          serial_number: string | null
+          updated_at: string
+        }
+        Insert: {
+          brand?: string | null
+          category?: string
+          created_at?: string
+          id?: string
+          manual_url?: string | null
+          model?: string | null
+          name: string
+          notes?: string | null
+          owner_id: string
+          qr_code?: string | null
+          serial_number?: string | null
+          updated_at?: string
+        }
+        Update: {
+          brand?: string | null
+          category?: string
+          created_at?: string
+          id?: string
+          manual_url?: string | null
+          model?: string | null
+          name?: string
+          notes?: string | null
+          owner_id?: string
+          qr_code?: string | null
+          serial_number?: string | null
+          updated_at?: string
         }
         Relationships: []
       }
@@ -385,6 +602,47 @@ export type Database = {
         }
         Relationships: []
       }
+      rental_bookings: {
+        Row: {
+          created_at: string
+          end_date: string
+          id: string
+          notes: string | null
+          rental_id: string
+          renter_id: string
+          start_date: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          end_date: string
+          id?: string
+          notes?: string | null
+          rental_id: string
+          renter_id: string
+          start_date: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          end_date?: string
+          id?: string
+          notes?: string | null
+          rental_id?: string
+          renter_id?: string
+          start_date?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rental_bookings_rental_id_fkey"
+            columns: ["rental_id"]
+            isOneToOne: false
+            referencedRelation: "tool_rentals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       reports: {
         Row: {
           created_at: string
@@ -415,6 +673,111 @@ export type Database = {
         }
         Relationships: []
       }
+      saved_searches: {
+        Row: {
+          category: string | null
+          created_at: string
+          id: string
+          keywords: string | null
+          label: string
+          max_price: number | null
+          region: string | null
+          user_id: string
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          id?: string
+          keywords?: string | null
+          label: string
+          max_price?: number | null
+          region?: string | null
+          user_id: string
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          id?: string
+          keywords?: string | null
+          label?: string
+          max_price?: number | null
+          region?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      seller_verifications: {
+        Row: {
+          created_at: string
+          id: string
+          notes: string | null
+          reviewed_by: string | null
+          status: string
+          user_id: string
+          verified_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          reviewed_by?: string | null
+          status?: string
+          user_id: string
+          verified_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          reviewed_by?: string | null
+          status?: string
+          user_id?: string
+          verified_at?: string | null
+        }
+        Relationships: []
+      }
+      spare_parts: {
+        Row: {
+          category: string
+          contact: string | null
+          created_at: string
+          fits: string | null
+          id: string
+          image_url: string | null
+          in_stock: boolean
+          location: string | null
+          name: string
+          price: number
+          seller_id: string
+        }
+        Insert: {
+          category?: string
+          contact?: string | null
+          created_at?: string
+          fits?: string | null
+          id?: string
+          image_url?: string | null
+          in_stock?: boolean
+          location?: string | null
+          name: string
+          price?: number
+          seller_id: string
+        }
+        Update: {
+          category?: string
+          contact?: string | null
+          created_at?: string
+          fits?: string | null
+          id?: string
+          image_url?: string | null
+          in_stock?: boolean
+          location?: string | null
+          name?: string
+          price?: number
+          seller_id?: string
+        }
+        Relationships: []
+      }
       subscriptions: {
         Row: {
           created_at: string
@@ -442,6 +805,101 @@ export type Database = {
           tier?: string
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      tool_maintenance: {
+        Row: {
+          cost: number
+          created_at: string
+          fuel_liters: number | null
+          hours_used: number | null
+          id: string
+          notes: string | null
+          owner_id: string
+          service_date: string
+          service_type: string
+          tool_id: string
+        }
+        Insert: {
+          cost?: number
+          created_at?: string
+          fuel_liters?: number | null
+          hours_used?: number | null
+          id?: string
+          notes?: string | null
+          owner_id: string
+          service_date?: string
+          service_type: string
+          tool_id: string
+        }
+        Update: {
+          cost?: number
+          created_at?: string
+          fuel_liters?: number | null
+          hours_used?: number | null
+          id?: string
+          notes?: string | null
+          owner_id?: string
+          service_date?: string
+          service_type?: string
+          tool_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tool_maintenance_tool_id_fkey"
+            columns: ["tool_id"]
+            isOneToOne: false
+            referencedRelation: "owned_tools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tool_rentals: {
+        Row: {
+          category: string
+          contact: string | null
+          created_at: string
+          description: string | null
+          id: string
+          image_url: string | null
+          is_available: boolean
+          location: string | null
+          name: string
+          owner_id: string
+          price_per_day: number
+          price_per_hour: number | null
+          updated_at: string
+        }
+        Insert: {
+          category?: string
+          contact?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          is_available?: boolean
+          location?: string | null
+          name: string
+          owner_id: string
+          price_per_day?: number
+          price_per_hour?: number | null
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          contact?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          is_available?: boolean
+          location?: string | null
+          name?: string
+          owner_id?: string
+          price_per_day?: number
+          price_per_hour?: number | null
+          updated_at?: string
         }
         Relationships: []
       }
