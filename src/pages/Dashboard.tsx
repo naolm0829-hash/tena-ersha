@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Activity, Scan, HeartPulse, ShoppingBag, AlertCircle, Crown, Clock, CheckCircle2, XCircle, Send } from "lucide-react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { Activity, Scan, HeartPulse, ShoppingBag, AlertCircle, Crown, Clock, CheckCircle2, XCircle, Send, RefreshCw, Bug } from "lucide-react";
 import { motion } from "framer-motion";
 import { useLang } from "@/contexts/LangContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -17,50 +17,86 @@ const Dashboard = () => {
   const [payments, setPayments] = useState<any[]>([]);
   const [subscription, setSubscription] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [showDebug, setShowDebug] = useState(false);
+  const [channelStatus, setChannelStatus] = useState<string>("idle");
+  const [eventCounts, setEventCounts] = useState<Record<string, number>>({});
+  const [lastEvent, setLastEvent] = useState<{ table: string; type: string; at: Date } | null>(null);
+  const [reloadCount, setReloadCount] = useState(0);
+
+  const cancelledRef = useRef(false);
+  const isInitialRef = useRef(true);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const fetchAll = useCallback(async (opts: { initial?: boolean; manual?: boolean } = {}) => {
+    if (!user) return;
+    if (opts.initial) setLoading(true);
+    if (opts.manual) setRefreshing(true);
+    setError(null);
+    try {
+      const [scanRes, animalRes, listingRes, payRes, subRes] = await Promise.all([
+        supabase.from("ai_diagnoses").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(10),
+        supabase.from("animal_health_records").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
+        supabase.from("marketplace_listings").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(5),
+        supabase.from("payment_requests" as any).select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(5),
+        supabase.from("subscriptions" as any).select("*").eq("user_id", user.id).maybeSingle(),
+      ]);
+      if (cancelledRef.current) return;
+      if (scanRes.error) throw scanRes.error;
+      if (animalRes.error) throw animalRes.error;
+      if (listingRes.error) throw listingRes.error;
+      setScans(scanRes.data || []);
+      setAnimals(animalRes.data || []);
+      setListings(listingRes.data || []);
+      setPayments((payRes.data as any[]) || []);
+      setSubscription(subRes.data || null);
+      setLastUpdated(new Date());
+      setReloadCount((c) => c + 1);
+    } catch (e: any) {
+      if (!cancelledRef.current) setError(e?.message || "Failed to load dashboard");
+    } finally {
+      if (!cancelledRef.current) {
+        if (opts.initial) setLoading(false);
+        if (opts.manual) setRefreshing(false);
+        isInitialRef.current = false;
+      }
+    }
+  }, [user]);
+
+  // Debounced realtime trigger — never flips to skeleton.
+  const scheduleReload = useCallback((table: string, type: string) => {
+    setEventCounts((prev) => ({ ...prev, [table]: (prev[table] || 0) + 1 }));
+    setLastEvent({ table, type, at: new Date() });
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => { fetchAll(); }, 600);
+  }, [fetchAll]);
 
   useEffect(() => {
     if (!user) { setLoading(false); return; }
-    let cancelled = false;
-    const load = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const [scanRes, animalRes, listingRes, payRes, subRes] = await Promise.all([
-          supabase.from("ai_diagnoses").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(10),
-          supabase.from("animal_health_records").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
-          supabase.from("marketplace_listings").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(5),
-          supabase.from("payment_requests" as any).select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(5),
-          supabase.from("subscriptions" as any).select("*").eq("user_id", user.id).maybeSingle(),
-        ]);
-        if (cancelled) return;
-        if (scanRes.error) throw scanRes.error;
-        if (animalRes.error) throw animalRes.error;
-        if (listingRes.error) throw listingRes.error;
-        setScans(scanRes.data || []);
-        setAnimals(animalRes.data || []);
-        setListings(listingRes.data || []);
-        setPayments((payRes.data as any[]) || []);
-        setSubscription(subRes.data || null);
-      } catch (e: any) {
-        if (!cancelled) setError(e?.message || "Failed to load dashboard");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+    cancelledRef.current = false;
+    isInitialRef.current = true;
+    fetchAll({ initial: true });
+
+    const tables = ["payment_requests", "subscriptions", "ai_diagnoses", "marketplace_listings", "animal_health_records"];
+    let channel = supabase.channel(`dash-${user.id}`);
+    tables.forEach((t) => {
+      const filter = t === "subscriptions" || t === "payment_requests" ? `user_id=eq.${user.id}` : `user_id=eq.${user.id}`;
+      channel = channel.on(
+        "postgres_changes" as any,
+        { event: "*", schema: "public", table: t, filter },
+        (payload: any) => scheduleReload(t, payload?.eventType || "change")
+      );
+    });
+    channel.subscribe((status) => setChannelStatus(status));
+
+    return () => {
+      cancelledRef.current = true;
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      supabase.removeChannel(channel);
     };
-    load();
-
-    const channel = supabase
-      .channel(`dash-${user.id}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "payment_requests", filter: `user_id=eq.${user.id}` }, load)
-      .on("postgres_changes", { event: "*", schema: "public", table: "subscriptions", filter: `user_id=eq.${user.id}` }, load)
-      .on("postgres_changes", { event: "*", schema: "public", table: "ai_diagnoses", filter: `user_id=eq.${user.id}` }, load)
-      .on("postgres_changes", { event: "*", schema: "public", table: "marketplace_listings", filter: `user_id=eq.${user.id}` }, load)
-      .on("postgres_changes", { event: "*", schema: "public", table: "animal_health_records", filter: `user_id=eq.${user.id}` }, load)
-      .subscribe();
-
-    return () => { cancelled = true; supabase.removeChannel(channel); };
-  }, [user]);
+  }, [user, fetchAll, scheduleReload]);
 
   if (!user) {
     return (
@@ -94,7 +130,7 @@ const Dashboard = () => {
       <div className="container py-16 max-w-md mx-auto text-center space-y-4">
         <AlertCircle className="h-10 w-10 mx-auto text-destructive" />
         <p className="text-muted-foreground">{error}</p>
-        <button onClick={() => window.location.reload()} className="px-5 py-2 bg-primary text-primary-foreground rounded-lg font-medium">
+        <button onClick={() => fetchAll({ initial: true })} className="px-5 py-2 bg-primary text-primary-foreground rounded-lg font-medium">
           {lang === "am" ? "እንደገና ሞክር" : "Try again"}
         </button>
       </div>
@@ -110,6 +146,8 @@ const Dashboard = () => {
     { icon: Activity, label: lang === "am" ? "የታመሙ" : "Sick Animals", value: sickCount, color: "bg-destructive/10 text-destructive" },
     { icon: ShoppingBag, label: lang === "am" ? "የገበያ ዝርዝሮች" : "My Listings", value: listings.length, color: "bg-accent/10 text-accent-foreground" },
   ];
+
+  const totalEvents = Object.values(eventCounts).reduce((a, b) => a + b, 0);
 
   return (
     <motion.div
@@ -132,6 +170,56 @@ const Dashboard = () => {
           </Link>
         )}
       </div>
+
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-muted-foreground">
+          {lang === "am" ? "የመጨረሻ ዝመና" : "Last updated"}:{" "}
+          {lastUpdated ? lastUpdated.toLocaleTimeString() : "—"}
+        </p>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => fetchAll({ manual: true })}
+            disabled={refreshing}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 disabled:opacity-60"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
+            {lang === "am" ? "አድስ" : "Refresh"}
+          </button>
+          <button
+            onClick={() => setShowDebug((v) => !v)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium hover:bg-muted"
+          >
+            <Bug className="h-3.5 w-3.5" />
+            {showDebug ? "Hide" : "Debug"}
+          </button>
+        </div>
+      </div>
+
+      {showDebug && (
+        <div className="bg-muted/40 border border-border rounded-xl p-4 text-xs font-mono space-y-2">
+          <div className="flex flex-wrap gap-x-4 gap-y-1">
+            <span>channel: <b className={channelStatus === "SUBSCRIBED" ? "text-success" : "text-accent-foreground"}>{channelStatus}</b></span>
+            <span>reloads: <b>{reloadCount}</b></span>
+            <span>total events: <b>{totalEvents}</b></span>
+            <span>loading: <b>{String(loading)}</b></span>
+            <span>refreshing: <b>{String(refreshing)}</b></span>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-1">
+            {["payment_requests", "subscriptions", "ai_diagnoses", "marketplace_listings", "animal_health_records"].map((t) => (
+              <div key={t} className="flex justify-between bg-background rounded px-2 py-1">
+                <span>{t}</span>
+                <b>{eventCounts[t] || 0}</b>
+              </div>
+            ))}
+          </div>
+          {lastEvent && (
+            <p className="text-muted-foreground">
+              last: {lastEvent.table} · {lastEvent.type} @ {lastEvent.at.toLocaleTimeString()}
+            </p>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {stats.map((s, i) => (
@@ -183,7 +271,6 @@ const Dashboard = () => {
             <HeartPulse className="h-5 w-5 text-success" />
             {lang === "am" ? "የእንስሳ ጤና" : "Animal Health"}
           </h2>
-          {/* Simple bar showing healthy vs sick */}
           <div className="flex rounded-full overflow-hidden h-4">
             {healthyCount > 0 && (
               <div
